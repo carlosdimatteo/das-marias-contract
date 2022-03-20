@@ -64,7 +64,7 @@ contract BaseVault is ERC20 {
     function getTotalContractValue() public view returns (uint256) { 
         uint256 cDaiBalance = cDai.balanceOf(address(this));
         uint256 rate = cDai.exchangeRateStored();
-        uint256 cDaiValue = (cDaiBalance / 1e18) * (rate / 1e28);
+        uint256 cDaiValue = (cDaiBalance / 1e8) * (rate / 1e18);
 				uint256 daiBalance = dai.balanceOf(address(this));
 				uint256 value = daiBalance + cDaiValue;
         return  value;
@@ -74,13 +74,13 @@ contract BaseVault is ERC20 {
         uint256 proofOfDepositPrice = 0;
         uint256 totalBalance = getTotalContractValue();
         if (totalSupply() > 0) {
-            proofOfDepositPrice = (totalBalance * 1e18)/totalSupply();
+            proofOfDepositPrice = (totalBalance *1e18)/totalSupply();
         }
         return proofOfDepositPrice;
     }
 
-     function deposit(uint256 DAIAmount) public {
-        require(dai.allowance(msg.sender, address(this)) >= DAIAmount, "Contract is not allowed to spend user's DRC.");
+     function deposit(uint256 DAIAmount) public returns (uint256) {
+        require(dai.allowance(msg.sender, address(this)) >= DAIAmount, "Contract is not allowed to spend user's DAI.");
         require(dai.balanceOf(msg.sender) >= DAIAmount, "Attempted to deposit more than balance.");
         // mint amount of POD to be transferred to user for this deposit 
 
@@ -89,19 +89,19 @@ contract BaseVault is ERC20 {
     
         dai.transferFrom(msg.sender, address(this), DAIAmount);
         // deposit 50% eth  to compound
-        cDai.mint(amountForYield);
+        dai.approve(COMPOUND_CDAI_ADDRESS,amountForYield);
+        uint256 cDaiMintResult = cDai.mint(amountForYield);
 
         uint256 currentPodUnitPrice = getProofOfDepositPrice();
          uint256 podToMint = 0;
-        if (totalSupply() == 0) {
-            podToMint = DAIAmount*1e15;
+        if (totalSupply() == 0 ) {
+            podToMint = DAIAmount/5;
         } else {
-            uint256 totalBalance = getTotalContractValue();
-            uint256 newPodTotal = (totalBalance * 1e18)/currentPodUnitPrice;
-            podToMint = newPodTotal - totalSupply();
+          podToMint = (DAIAmount / currentPodUnitPrice/1e18) *1e18 ;
         }
 
         _mint(msg.sender, podToMint);
+        return cDaiMintResult;
     }
 
        
@@ -111,14 +111,13 @@ contract BaseVault is ERC20 {
 
     function withdraw (uint256 PODAmount) public {
       uint256 currentPODPrice = getProofOfDepositPrice();
-      uint256 daiAmount = PODAmount * currentPODPrice;
+      uint256 daiAmount = PODAmount *(currentPODPrice *1e18);
       uint256 currentDaiBalance = dai.balanceOf(address(this));
-      require(getTotalContractValue() >= daiAmount, "Attempted to withdraw more than balance.");
-      if(currentDaiBalance >= PODAmount){
-          dai.transferFrom(address(this), msg.sender,daiAmount );
-      }else{
-          uint256 extraAmount = PODAmount - currentDaiBalance;
-          cDai.redeem(extraAmount);
+      uint256 contractTotal = getTotalContractValue()  ;
+      require(contractTotal>= daiAmount, "Attempted to withdraw more than balance.");
+      require(currentDaiBalance >= daiAmount,"Not enough liquidity for withdrawal");
+      if(currentDaiBalance >= daiAmount){
+          dai.approve(msg.sender,daiAmount);
           dai.transferFrom(address(this), msg.sender,daiAmount );
       }
 
