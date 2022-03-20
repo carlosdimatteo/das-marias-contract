@@ -1,11 +1,19 @@
 const main = async () => {
-  const BankContractFactory = await hre.ethers.getContractFactory('WavePortal');
-  const BankContract = await BankContractFactory.deploy({
-    value: hre.ethers.utils.parseEther('0.1'),
-  });
+  const BankContractFactory = await hre.ethers.getContractFactory('BaseVault');
+  const BankContract = await BankContractFactory.deploy(
+    "DAS MARIAS POD",
+    "DMR-POD",
+    {
+    value:hre.ethers.utils.parseEther('0.01'),
+  },
+  );
   await BankContract.deployed();
   console.log('Contract addy:', BankContract.address);
-
+  const value = await BankContract.getTotalContractValue();
+  const decimals = await BankContract.decimals()
+    console.log({
+      value,
+      decimals})
  
 };
 
